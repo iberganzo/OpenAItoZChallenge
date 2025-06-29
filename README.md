@@ -28,6 +28,6 @@ Another conclusion drawn from the analysis of known archaeological sites using s
 A new comprehensive survey can be conducted using PART IV of the Jupyter Notebook (BerganzoBesga_Orengo_OpenAItoZ_Workflow.ipynb) by simply specifying your own survey area.
 
 ## 5. Georeferencing
-Once the sites have been detected and validated, a TXT file (potential_sites_detected.txt) is generated containing information about the potential new sites detected, along with their locations within the images. Using the geo.py script, and specifying the path to the previously cropped TIF files, a shapefile with the detected potential sites (potential_sites_detected.shp) can be created.
+Once the sites have been detected and validated, a TXT file (potential_sites_detected.txt) is generated containing information about the potential new sites detected, along with their locations within the images. Using the georeferencing.py script, and specifying the path to the previously cropped TIF files, a shapefile with the detected potential sites (potential_sites_detected.shp) can be created.
 
 
