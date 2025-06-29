@@ -1,0 +1,145 @@
+/**** 1. Define your region of interest (ROI) if needed ****/
+// Example: var roi = /* an ee.Geometry or FeatureCollection */;
+Map.setCenter(-59.9809, -8.2933, 12);
+print('Area', roi.area(1).divide(1e6), 'km²');
+
+/**** 2. Load the Sentinel-2 Harmonized collection (L2A). ****/
+function maskS2clouds(image) {
+  var qa = image.select('QA60');
+
+  // Bits 10 and 11 are clouds and cirrus, respectively.
+  var cloudBitMask = 1 << 10;
+  var cirrusBitMask = 1 << 11;
+
+  // Both flags should be set to zero, indicating clear conditions.
+  var mask = qa.bitwiseAnd(cloudBitMask).eq(0)
+      .and(qa.bitwiseAnd(cirrusBitMask).eq(0));
+
+  return image.updateMask(mask).divide(10000)
+        .select("B.*")
+      .copyProperties(image, ["system:time_start"]);
+}
+
+/**** 3. Load the Sentinel-2 Harmonized collection (L2A). ****/
+var s2Collection = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+                   .filterBounds(roi)             // Optional: filter to an ROI
+                  // .filterDate('2020-01-01', '2023-01-01') // Optional: limit by date
+                  // Pre-filter to get less cloudy granules.
+                  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE',30))
+                  .map(maskS2clouds);
+
+print('s2Collection',s2Collection);
+
+/**** 4. Filter for Summer vs. Winter months. ****/
+// Summer: June (6), July (7), August (8)
+var summerCollection = s2Collection.filter(
+  ee.Filter.calendarRange(6, 8, 'month')
+);
+print('summerCollection',summerCollection);
+
+// Winter: December (12), January (1), February (2)
+// This needs two filters combined with an "OR".
+var winterCollection = s2Collection.filter(
+  ee.Filter.or(
+    ee.Filter.calendarRange(12, 12, 'month'),
+    ee.Filter.calendarRange(1, 5, 'month')
+  )
+);
+print('winterCollection',winterCollection);
+
+/**** 5. Define a function to add EVI to each image. ****/
+// EVI formula (commonly): EVI = 2.5 * (NIR - Red) / (NIR + 6*Red - 7.5*Blue + 1)
+function addEVI(image) {
+  var nir = image.select('B8');   // Sentinel-2 NIR
+  var red = image.select('B4');   // Sentinel-2 Red
+  var blue = image.select('B2');  // Sentinel-2 Blue
+
+  var evi = nir.subtract(red).multiply(2.5)
+    .divide(
+      nir.add(red.multiply(6.0))
+         .subtract(blue.multiply(7.5))
+         .add(1.0)
+    )
+    .rename('EVI');
+  
+  // Return original bands plus the new EVI band
+  return image.addBands(evi);
+}
+
+/**** 6. Compute EVI for each collection, then create seasonal composites. ****/
+var summerEVIComposite = summerCollection
+  .map(addEVI)
+  .median()                   // or .mean(), etc.
+  .select('EVI')              // Keep just the EVI band
+  .rename('EVI_summer');      // Rename for clarity
+
+var winterEVIComposite = winterCollection
+  .map(addEVI)
+  .median()
+  .select('EVI')
+  .rename('EVI_winter');
+
+/**** 7. Combine (join) the two seasonal EVI bands into one composite image. ****/
+var seasonalEVIComposite = summerEVIComposite.addBands(winterEVIComposite);
+
+/**** 8. Compute the standard deviation between the two bands ****/
+var seasonalEVIStdDev = seasonalEVIComposite
+  .reduce(ee.Reducer.stdDev())
+  .rename('EVI_stdDev');
+
+/**** 4. Define a function to calculate NDRE for each image. ****/
+// NDRE = (NIR - RedEdge) / (NIR + RedEdge)
+function addNDRE(image) {
+  var nir = image.select('B8');   // Sentinel-2 NIR (Band 8 ~842 nm)
+  var re = image.select('B5');    // Sentinel-2 RedEdge (Band 5 ~705 nm)
+  
+  var ndre = nir.subtract(re).divide(nir.add(re)).rename('NDRE');
+  
+  // Return the original image with the new NDRE band
+  return image.addBands(ndre);
+}
+
+/**** 5. Compute NDRE for each collection and create seasonal composites. ****/
+// Summer NDRE composite
+var summerNDREComposite = summerCollection
+  .map(addNDRE)
+  .median()                 // or .mean(), etc.
+  .select('NDRE')           // Keep just the NDRE band
+  .rename('NDRE_summer');   // Rename for clarity
+
+// Winter NDRE composite
+var winterNDREComposite = winterCollection
+  .map(addNDRE)
+  .median()
+  .select('NDRE')
+  .rename('NDRE_winter');
+
+/**** 6. Combine (join) the two seasonal NDRE bands into one composite image. ****/
+var seasonalNDREComposite = summerNDREComposite.addBands(winterNDREComposite);
+
+/**** 7. Export the EVI and NDRE imagery to Google Drive as GeoTIFF. ****/
+var band1 = seasonalEVIComposite.toFloat();
+var band2 = seasonalNDREComposite.toFloat();
+
+Export.image.toDrive({
+  image: band1,
+  description: 'Sentinel2_EVI_export',
+  folder: 'GEE_exports',
+  fileNamePrefix: 'Sentinel2_EVI',
+  region: roi,
+  scale: 10,
+  maxPixels: 1e9,
+  fileFormat: 'GeoTIFF'
+});
+
+Export.image.toDrive({
+  image: band2,
+  description: 'Sentinel2_NDRE_export',
+  folder: 'GEE_exports',
+  fileNamePrefix: 'Sentinel2_NDRE',
+  region: roi,
+  scale: 10,
+  maxPixels: 1e9,
+  fileFormat: 'GeoTIFF'
+});
+
