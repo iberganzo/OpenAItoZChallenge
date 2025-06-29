@@ -6,7 +6,7 @@ Prior to implementing the workflow for a new archaeological survey, it is necess
 
 The next step involves subdividing the survey area into tiles to enable the implementation of the workflow, which classifies images based on the presence or absence of archaeological sites rather than detecting them directly. This will be done using the TIF_to_JPG_and_Crop.py script, which partitions the original TIF file into 128x128 pixel tiles, producing outputs in both TIF format (to retain geospatial referencing) and JPG format.
 
-As a result, two datasets have been generated: EVI and NDRE. The EVI dataset will be used to identify potential archaeological sites, while the NDRE dataset will assist in detecting rivers and paleochannels—critical features for assessing the likelihood of a site's validity. The survey area used in the challenge to locate new potential sites can be found in the survey_area.zip ZIP file.
+As a result, two datasets have been generated: EVI and NDRE. The EVI dataset will be used to identify potential archaeological sites, while the NDRE dataset will assist in detecting rivers and paleochannels—critical features for assessing the likelihood of a site's validity. The survey area used in the challenge to locate new potential sites can be found in the survey_area.zip ZIP file (run the Jupyter Notebook (BerganzoBesga_Orengo_OpenAItoZ_Workflow.ipynb) to download it).
 
 ## 2. Survey area
 But how do we choose the area in which to conduct the survey? The answer to this question was obtained by analyzing known archaeological sites through data extraction using OpenAI's o3 model.
